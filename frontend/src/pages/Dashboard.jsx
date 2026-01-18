@@ -19,7 +19,6 @@ import {
 } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/PeopleRounded';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUserRounded';
-import PendingIcon from '@mui/icons-material/PendingActionsRounded';
 import BoltIcon from '@mui/icons-material/BoltRounded';
 import SyncIcon from '@mui/icons-material/Sync';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';

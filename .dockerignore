@@ -1,0 +1,31 @@
+# Node
+node_modules
+**/node_modules
+npm-debug.log
+yarn-error.log
+
+# Env / secrets
+.env
+.env.*
+
+# Git
+.git
+.gitignore
+
+# Build outputs
+dist
+build
+frontend/dist
+frontend/build
+frontend/.next
+coverage
+
+# Caches
+**/.cache
+**/.npm
+**/__pycache__
+*.log
+
+# OS / editor junk
+.DS_Store
+Thumbs.db

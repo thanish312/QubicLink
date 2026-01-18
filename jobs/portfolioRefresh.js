@@ -74,7 +74,7 @@ const runPortfolioRefresh = async (client) => {
         return;
     }
 
-    logger.info('=== 💰 Portfolio Refresh Started ===');
+    logger.info('=== Portfolio Refresh Started ===');
     const startTime = Date.now();
 
     try {

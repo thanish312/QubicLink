@@ -9,26 +9,26 @@ datasource db {
 
 // The Human (Discord Account)
 model User {
-  discordId     String    @id @unique
+  discordId     String   @id @unique
   username      String?
   discriminator String?
   avatar        String?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime @default(now())
 
   // A user can own multiple wallets
-  wallets       Wallet[]
+  wallets Wallet[]
 }
 
 // The Asset (Qubic Wallet)
 model Wallet {
-  address       String   @id @unique // A wallet can only belong to ONE user (Security)
-  isVerified    Boolean  @default(false)
-  verifiedAt    DateTime?
-  createdAt     DateTime @default(now())
-  
+  address    String    @id @unique // A wallet can only belong to ONE user (Security)
+  isVerified Boolean   @default(false)
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
   // Link back to the human
-  userId        String
-  user          User     @relation(fields: [userId], references: [discordId], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [discordId], onDelete: Cascade)
 }
 
 // Temporary Handshakes
@@ -50,15 +50,15 @@ model ProcessedTransaction {
 }
 
 model RoleThreshold {
-  id          String   @id @default(cuid())
-  roleId      String   @unique
-  roleName    String
-  threshold   BigInt   @default(0)
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  roleId    String   @unique
+  roleName  String
+  threshold BigInt   @default(0)
+  createdAt DateTime @default(now())
 }
 
 model Portfolio {
-  userId         String   @id @unique
-  totalBalance   BigInt   @default(0)
-  updatedAt      DateTime @updatedAt
+  userId       String   @id @unique
+  totalBalance BigInt   @default(0)
+  updatedAt    DateTime @updatedAt
 }

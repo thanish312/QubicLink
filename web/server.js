@@ -14,7 +14,12 @@ const createServer = (discordClient, tasks) => {
     /*
      * 1. Core Middleware & App Context
      */
-    app.use(helmet()); // Apply basic security headers
+    app.use(
+        helmet({
+            crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+            crossOriginEmbedderPolicy: false,
+        })
+    );
     app.use(express.json()); // Essential for parsing JSON request bodies
     app.set('discord_client', discordClient);
     app.set('tasks', tasks);
@@ -77,8 +82,8 @@ const createServer = (discordClient, tasks) => {
     const start = () => {
         app.listen(PORT, () => {
             logger.info('=== QubicLink Server Started ===');
-            logger.info(`🔥 Mode: ${isDev ? 'Development' : 'Production'}`);
-            logger.info(`🚀 Application running at: http://localhost:${PORT}`);
+            logger.info(`Mode: ${isDev ? 'Development' : 'Production'}`);
+            logger.info(`Application running at: http://localhost:${PORT}`);
         });
     };
 

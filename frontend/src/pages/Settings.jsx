@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DataGrid } from '@mui/x-data-grid';
 import {
@@ -201,7 +201,7 @@ export default function Settings() {
                     return (
                         <Typography>{BigInt(params.value).toLocaleString()}</Typography>
                     );
-                } catch (e) {
+                } catch {
                     return <Typography>N/A</Typography>;
                 }
             },

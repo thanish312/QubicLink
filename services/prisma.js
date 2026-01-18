@@ -44,7 +44,7 @@ prisma.$use(async (params, next) => {
     try {
         await prisma.$queryRaw`SELECT 1`;
         logger.info('Database connection successful.');
-    } catch (e) {
+    } catch {
         logger.warn('Initial database connection check failed. Will retry on first query.');
     }
 })();
