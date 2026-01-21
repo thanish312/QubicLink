@@ -1,12 +1,12 @@
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/4a274c60-0029-4b8b-a233-459d432faeff" alt="QubicLink Logo" width="400" height="400" />
+  <img src="https://github.com/user-attachments/assets/4a274c60-0029-4b8b-a233-459d432faeff" alt="QubicLink Logo" width="800" height="800" />
   <h1>QubicLink</h1>
   <p>A production-grade identity bridge that securely links Discord identities with Qubic blockchain wallets, enabling automated, trustless, and on-chain portfolio-based role management.</p>
   <div>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" /></a>
     <a href="https://hub.docker.com/r/thanishurs31/qubiclink"><img src="https://img.shields.io/docker/pulls/thanishurs31/qubiclink.svg" alt="Docker Pulls" /></a>
-    <img src="https://img.shields.io/github/stars/thanishurs31/qubiclink" alt="GitHub stars">
-    <img src="https://img.shields.io/github/forks/thanishurs31/qubiclink" alt="GitHub forks">
+    <img src="https://img.shields.io/github/stars/thanish312/qubiclink" alt="GitHub stars">
+    <img src="https://img.shields.io/github/forks/thanish312/qubiclink" alt="GitHub forks">
   </div>
   <br>
 </div>
@@ -47,6 +47,35 @@ QubicLink solves a common problem in the web3 space: how to grant Discord roles 
 
 6. A background job calculates the user's total portfolio value and assigns the appropriate Discord roles based on predefined thresholds.
 ```
+---
+
+## Security Features
+
+QubicLink is built with a defense-in-depth approach to security, ensuring that all interactions are as safe as possible.
+
+### Input Validation
+
+*   All incoming data from the EasyConnect webhook is rigorously validated using **[Zod](https://zod.dev/)**. This ensures that only well-formed data that matches the expected schema is processed, preventing a wide range of potential vulnerabilities.
+
+### On-Chain Verification
+
+*   The core of QubicLink's security is its on-chain verification process. Instead of relying on potentially spoofable off-chain data, the bot verifies the user's bid order directly against the Qubic blockchain. This provides a trustless and definitive proof of wallet ownership.
+
+### Replay Attack Prevention
+
+*   Every transaction processed by QubicLink is logged by its unique transaction ID. The system checks this log before processing any new transaction to ensure that the same transaction cannot be used more than once for verification, effectively preventing replay attacks.
+
+### Wallet Theft Prevention
+
+*   Once a wallet is successfully linked to a Discord account, it cannot be claimed by another user. QubicLink's logic checks for existing ownership before linking a wallet, preventing bad actors from stealing other users' verified wallet identities.
+
+### Authentication
+
+*   The admin dashboard is protected by a robust authentication system using **JSON Web Tokens (JWT)**. All API endpoints require a valid JWT, ensuring that only authorized administrators can access sensitive data and perform administrative actions.
+
+### CORS and Helmet
+
+*   The Express server uses **[CORS](https://expressjs.com/en/resources/middleware/cors.html)** and **[Helmet](https://helmetjs.github.io/)** middleware to secure the API. CORS is configured to only allow requests from the frontend application, and Helmet applies various HTTP headers to protect against common web vulnerabilities like Cross-Site Scripting (XSS) and clickjacking.
 
 ---
 
@@ -148,6 +177,7 @@ docker run -d -p 3000:3000 --name qubiclink --env-file ./.env thanishurs31/qubic
 | `FRONTEND_URL`       | The full URL where the frontend is hosted (e.g., http://localhost:3000).                                  |
 | `LOG_LEVEL`          | The logging level. Options: 'debug', 'info', 'warn', 'error'.                                             |
 | `DATABASE_URL`       | The connection URL for your PostgreSQL database.                                                          |
+| `QUBIC_ASSET_NAME`   | The name of the Qubic asset to be used for verification (e.g., GARTH).                                   |
 
 ---
 
@@ -203,7 +233,6 @@ After completing these steps, your bot will be ready to use with QubicLink.
 To enable automated wallet verification, you need to configure an external service to monitor the Qubic blockchain and notify QubicLink when a user creates their verification transaction. This guide uses [EasyConnect](https://ec-pre.kairos-tek.com/), a service that can watch for specific on-chain events and send webhooks.
 
 The goal is to create an alert that triggers *only* when a user places the exact bid order that the QubicLink bot instructed them to.
-
 ### Configuration Steps:
 
 1.  **Sign up on EasyConnect** and create a **New Alert**.
@@ -212,17 +241,29 @@ The goal is to create an alert that triggers *only* when a user places the exact
     *   **Contract:** `Qubic Qx Smart Contract`
     *   **Method:** `AddToBidOrder`
 
-3.  **Define the Conditions:** This ensures the alert only triggers for transactions that match our specific verification criteria.
-    *   **`AssetName`** (string) `is` **`GARTH`**
-    *   **`Price`** (number) `is` **`1`**
-    *   **`NumberOfShares`** (number) `less than` **`100000`**
+3.  **Define the Conditions:** This ensures the alert only triggers for transactions that match our specific verification criteria. You can add a new condition by clicking "New condition".
 
-    *Note: The `NumberOfShares` is the random code generated for each user. This condition helps filter out irrelevant transactions.*
+    **Condition 1: Asset Name**
+    *   **Variable:** `AssetName`
+    *   **Type:** `Equals`
+    *   **Value:** Enter the asset name you configured in your `.env` file for `QUBIC_ASSET_NAME` (e.g., GARTH).
+    *   *This is the name identifier of the asset to be purchased.*
+
+    **Condition 2: Price**
+    *   **Variable:** `Price`
+    *   **Type:** `Equals`
+    *   **Value:** `1`
+    *   *This is the maximum price per share willing to pay in QU units.*
+
+    **Condition 3: Number of Shares**
+    *   **Variable:** `NumberOfShares`
+    *   **Type:** `Less than`
+    *   **Value:** `100000`
+    *   *This is the number of asset shares to purchase at the specified price. This condition helps filter out irrelevant transactions.*
 
 4.  **Configure the Notification:** This tells EasyConnect where to send the data when the conditions are met.
     *   **Webhook URL:** Set this to the public-facing URL of your QubicLink deployment, followed by the `/webhook/qubic` endpoint.
         *   **Example:** `http://<your_ip_or_domain>:3000/webhook/qubic`
-    *   **Method:** Ensure the webhook is sent as a `POST` request.
 
 Once configured, EasyConnect will send a detailed payload to your QubicLink instance every time a user correctly places their verification bid order, allowing the bot to finalize the verification.
 

@@ -16,6 +16,11 @@ const envSchema = z.object({
         .url('FRONTEND_URL must be a valid URL')
         .min(1, 'FRONTEND_URL is required'),
     PORT: z.coerce.number().int().positive().default(3000),
+
+    // Qubic
+    QUBIC_ASSET_NAME: z
+        .string()
+        .min(1, 'QUBIC_ASSET_NAME is required'),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -45,6 +50,7 @@ const CONFIG = {
     ADMIN_JWT_SECRET: env.ADMIN_JWT_SECRET,
     FRONTEND_URL: env.FRONTEND_URL,
     PORT: env.PORT,
+    QUBIC_ASSET_NAME: env.QUBIC_ASSET_NAME,
 
     // Qubic
     QUBIC_RPC_URL: 'https://rpc.qubic.org',

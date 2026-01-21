@@ -199,6 +199,19 @@ const processWebhook = async (req, requestId) => {
             const tx = validatedPayload.RawTransaction.transaction;
             const parsed = validatedPayload.ParsedTransaction;
 
+            if (parsed.AssetName !== CONFIG.QUBIC_ASSET_NAME) {
+                logger.warn(
+                    {
+                        requestId,
+                        received: parsed.AssetName,
+                        expected: CONFIG.QUBIC_ASSET_NAME,
+                    },
+                    'Asset name mismatch, skipping transaction'
+                );
+                skipped++;
+                continue;
+            }
+
             if (!(await preventReplay(tx.txId, requestId))) {
                 skipped++;
                 continue;

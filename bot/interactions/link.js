@@ -181,7 +181,7 @@ module.exports = async (interaction, commandId) => {
             .addFields(
                 {
                     name: '1️⃣  Order Details',
-                    value: `**Asset:** GARTH\n**Price:** 1\n**Shares:** \`${signalCode}\``,
+                    value: `**Asset:** ${CONFIG.QUBIC_ASSET_NAME}\n**Price:** 1\n**Shares:** \`${signalCode}\``,
                     inline: true,
                 },
                 {
