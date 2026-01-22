@@ -20,19 +20,48 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useSnackbar } from 'notistack';
 import api from '../api';
+import Condition from '../components/Condition';
+
+const renderConditionsSummary = (conditions) => {
+    if (!conditions) return '';
+    const logic = conditions.all ? 'AND' : 'OR';
+    const sub = conditions.all || conditions.any;
+
+    if (!sub) return '';
+
+    const operatorMap = {
+        gt: '>',
+        lt: '<',
+        eq: '=',
+    };
+
+    return sub.map(c => {
+        if (c.all || c.any) {
+            return `(${renderConditionsSummary(c)})`;
+        }
+        return `${c.asset} ${operatorMap[c.operator] || c.operator} ${c.value}`;
+    }).join(` ${logic} `);
+};
 
 // This dialog handles both creating and editing a role.
 const RoleDialog = ({ open, onClose, role, onSave }) => {
     const [formData, setFormData] = useState({
         roleName: role?.roleName || '',
         roleId: role?.roleId || '',
-        threshold: role?.threshold ? role.threshold.toString() : '0',
+        conditions: role?.conditions || { all: [{ asset: 'QUBIC', operator: 'gt', value: '0' }] },
     });
 
     // Fetch all available discord roles for the autocomplete
     const { data: discordRoles = [], isLoading: isLoadingRoles } = useQuery({
         queryKey: ['discord-roles'],
         queryFn: () => api.get('/discord-roles').then((res) => res.data),
+        staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    });
+
+    // Fetch all available qubic assets for the autocomplete
+    const { data: qubicAssets = [] } = useQuery({
+        queryKey: ['qubic-assets'],
+        queryFn: () => api.get('/qubic-assets').then((res) => res.data),
         staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     });
 
@@ -44,24 +73,20 @@ const RoleDialog = ({ open, onClose, role, onSave }) => {
         });
     };
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
     const handleSubmit = () => {
         onSave(formData);
         onClose();
     };
 
-    // Find the full role object for the current selection to pass to Autocomplete value prop
     const selectedRoleObject = discordRoles.find(r => r.id === formData.roleId) || null;
 
     return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+        <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
             <DialogTitle>
                 {role ? 'Edit Role Threshold' : 'Add New Role Threshold'}
             </DialogTitle>
             <DialogContent sx={{ pt: 2 }}>
+                <Typography variant="h6" gutterBottom>Role</Typography>
                 <Autocomplete
                     id="discord-role-select"
                     options={discordRoles}
@@ -88,19 +113,13 @@ const RoleDialog = ({ open, onClose, role, onSave }) => {
                             }}
                         />
                     )}
-                    sx={{ mb: 2, mt: 1 }}
+                    sx={{ mb: 3, mt: 1 }}
                 />
-                <TextField
-                    margin="dense"
-                    name="threshold"
-                    label="Threshold"
-                    type="text" // Use text to handle large numbers as strings
-                    inputProps={{ pattern: '[0-9]*' }} // Allow only digits
-                    fullWidth
-                    variant="outlined"
-                    value={formData.threshold}
-                    onChange={handleChange}
-                    helperText="The exact balance a user must have to get this role (e.g., 1000000)."
+                <Typography variant="h6" gutterBottom>Conditions</Typography>
+                <Condition
+                    condition={formData.conditions}
+                    onChange={(newConditions) => setFormData({ ...formData, conditions: newConditions })}
+                    qubicAssets={qubicAssets}
                 />
             </DialogContent>
             <DialogActions sx={{ p: 2 }}>
@@ -192,19 +211,18 @@ export default function Settings() {
         { field: 'roleName', headerName: 'Role Name', width: 250 },
         { field: 'roleId', headerName: 'Discord Role ID', width: 250 },
         {
-            field: 'threshold',
-            headerName: 'Threshold',
-            width: 250,
-            renderCell: (params) => {
-                try {
-                    // Format the number with commas for readability
-                    return (
-                        <Typography>{BigInt(params.value).toLocaleString()}</Typography>
-                    );
-                } catch {
-                    return <Typography>N/A</Typography>;
-                }
-            },
+            field: 'conditions',
+            headerName: 'Conditions',
+            width: 500,
+            renderCell: (params) => (
+                <Tooltip title={renderConditionsSummary(params.value)}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                        <Typography variant="body2" sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {renderConditionsSummary(params.value)}
+                        </Typography>
+                    </Box>
+                </Tooltip>
+            ),
         },
         {
             field: 'actions',

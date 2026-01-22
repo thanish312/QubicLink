@@ -72,6 +72,31 @@ const CONFIG = {
     // RPC Circuit Breaker Defaults
     RPC_FAILURE_THRESHOLD: 5, // Number of consecutive RPC failures before cooldown
     RPC_COOLDOWN_MS: 300000, // 5 minutes cooldown after RPC failures
+
+    // Known Qubic Assets
+    QUBIC_ASSETS: [
+        'CFB',
+        'CODED',
+        'GARTH',
+        'GENESIS',
+        'MATILDA',
+        'PORTAL',
+        'Q',
+        'QCAP',
+        'QDOGE',
+        'QFT',
+        'QGOLD',
+        'QHEART',
+        'QMINE',
+        'QSILVER',
+        'QST',
+        'QTC',
+        'QWALLET',
+        'QXMR',
+        'QXTRADE',
+        'SATOSHI',
+        'VSTB001',
+    ],
 };
 
 module.exports = CONFIG;

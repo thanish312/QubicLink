@@ -17,6 +17,7 @@ model User {
 
   // A user can own multiple wallets
   wallets Wallet[]
+  ownedAssets   OwnedAsset[]
 }
 
 // The Asset (Qubic Wallet)
@@ -50,15 +51,30 @@ model ProcessedTransaction {
 }
 
 model RoleThreshold {
-  id        String   @id @default(cuid())
-  roleId    String   @unique
-  roleName  String
-  threshold BigInt   @default(0)
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  roleId     String   @unique
+  roleName   String
+  conditions Json     @default("{}") // JSONB in Postgres
+  createdAt  DateTime @default(now())
 }
 
 model Portfolio {
   userId       String   @id @unique
   totalBalance BigInt   @default(0)
   updatedAt    DateTime @updatedAt
+}
+
+// A specific asset holding for a user
+model OwnedAsset {
+  id        String   @id @default(cuid())
+  assetName String
+  quantity  String   // Storing as string to handle large numbers
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Link back to the human
+  userId String
+  user   User   @relation(fields: [userId], references: [discordId], onDelete: Cascade)
+
+  @@unique([userId, assetName]) // A user can only have one entry per asset
 }

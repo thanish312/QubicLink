@@ -175,15 +175,24 @@ router.get(
 );
 
 /**
+ * Get Qubic Assets
+ */
+router.get(
+    '/qubic-assets',
+    adminAuth,
+    asyncHandler(async (req, res) => {
+        res.json(CONFIG.QUBIC_ASSETS || []);
+    })
+);
+
+/**
  * Role Threshold Management
  */
 router.get(
     '/roles',
     adminAuth,
     asyncHandler(async (req, res) => {
-        const roles = await prisma.roleThreshold.findMany({
-            orderBy: { threshold: 'asc' },
-        });
+        const roles = await prisma.roleThreshold.findMany();
         res.json(roles);
     })
 );
@@ -192,13 +201,13 @@ router.post(
     '/roles',
     adminAuth,
     asyncHandler(async (req, res) => {
-        const { roleId, roleName, threshold } = req.body;
+        const { roleId, roleName, conditions } = req.body;
         try {
             const newRole = await prisma.roleThreshold.create({
                 data: {
                     roleId,
                     roleName,
-                    threshold: BigInt(threshold),
+                    conditions,
                 },
             });
             res.status(201).json(newRole);
@@ -218,13 +227,13 @@ router.put(
     adminAuth,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const { roleId, roleName, threshold } = req.body;
+        const { roleId, roleName, conditions } = req.body;
         const updatedRole = await prisma.roleThreshold.update({
             where: { id },
             data: {
                 roleId,
                 roleName,
-                threshold: BigInt(threshold),
+                conditions,
             },
         });
         res.json(updatedRole);
@@ -511,6 +520,9 @@ router.get(
             include: {
                 wallets: {
                     orderBy: { createdAt: 'desc' },
+                },
+                ownedAssets: {
+                    orderBy: { assetName: 'asc' },
                 },
             },
         });

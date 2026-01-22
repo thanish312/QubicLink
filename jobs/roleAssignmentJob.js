@@ -5,78 +5,87 @@ const { addRoleSafe, removeRoleSafe } = require('../services/discord.service');
 const CONFIG = require('../config/config');
 const { withRetry } = require('../utils/retry');
 
-const processUserRoles = async (guild, userPortfolio, roleThresholds) => {
+const evaluateCondition = (condition, portfolio) => {
+    const { all, any, asset, operator, value } = condition;
+
+    if (all) {
+        return all.every(subCondition => evaluateCondition(subCondition, portfolio));
+    }
+
+    if (any) {
+        return any.some(subCondition => evaluateCondition(subCondition, portfolio));
+    }
+
+    const assetName = asset;
+    const assetValue = portfolio[assetName] || 0n; // Default to 0 if asset not in portfolio
+
+    switch (operator) {
+        case 'gt':
+            return assetValue > BigInt(value);
+        case 'lt':
+            return assetValue < BigInt(value);
+        case 'eq':
+            return assetValue === BigInt(value);
+        default:
+            return false;
+    }
+};
+
+const processUserRoles = async (guild, user, roleThresholds, prismaClient) => {
+    const prisma = prismaClient || require('../services/prisma').prisma;
+
     try {
-        const member = await guild.members.fetch(userPortfolio.userId).catch(() => null);
+        const member = await guild.members.fetch(user.discordId).catch(() => null);
         if (!member) {
-            logger.debug({ userId: userPortfolio.userId }, 'Member not found in guild, skipping role assignment.');
+            logger.debug({ userId: user.discordId }, 'Member not found in guild, skipping role assignment.');
             return;
         }
-        
-        // Ensure the member's roles cache is up-to-date
+
         await member.fetch();
 
-        const totalNetWorth = userPortfolio.totalBalance;
-        logger.debug(
-            { userId: member.id, totalNetWorth: totalNetWorth.toString(), type: typeof totalNetWorth }, 
-            'Processing user for role assignment'
-        );
+        const portfolioData = await prisma.portfolio.findUnique({ where: { userId: user.discordId } });
+        const ownedAssets = await prisma.ownedAsset.findMany({ where: { userId: user.discordId } });
 
-        // Log all available thresholds for debugging
-        roleThresholds.forEach(role => {
-            logger.debug(
-                { roleName: role.roleName, threshold: role.threshold.toString(), type: typeof role.threshold },
-                'Evaluating against role threshold.'
-            );
+        const portfolio = {
+            QUBIC: portfolioData ? portfolioData.totalBalance : 0n,
+            ...ownedAssets.reduce((acc, asset) => {
+                acc[asset.assetName] = BigInt(asset.quantity);
+                return acc;
+            }, {}),
+        };
+
+        const qualifiedRoles = roleThresholds.filter(role => {
+            try {
+                return evaluateCondition(role.conditions, portfolio);
+            } catch (e) {
+                logger.error({ err: e, roleId: role.roleId, userId: user.discordId }, "Error evaluating role condition");
+                return false;
+            }
         });
 
-        // Find the highest role the user qualifies for.
-        const targetRoleThreshold = roleThresholds.find(role => {
-            const comparison = BigInt(totalNetWorth) >= BigInt(role.threshold);
-            logger.debug(
-                { 
-                    roleName: role.roleName, 
-                    netWorth: totalNetWorth.toString(), 
-                    threshold: role.threshold.toString(), 
-                    isMet: comparison 
-                },
-                'Comparing net worth to role threshold.'
-            );
-            return comparison;
-        });
+        const qualifiedRoleIds = qualifiedRoles.map(r => r.roleId);
 
-        if (targetRoleThreshold) {
-            logger.info({ userId: member.id, determinedRole: targetRoleThreshold.roleName }, 'Target role determined.');
-        } else {
-            logger.info({ userId: member.id, netWorth: totalNetWorth.toString() }, 'User did not meet any role thresholds.');
-        }
-
-        // Assign target role
-        if (targetRoleThreshold) {
-            if (!member.roles.cache.has(targetRoleThreshold.roleId)) {
-                await addRoleSafe(member, targetRoleThreshold.roleId, targetRoleThreshold.roleName);
-            } else {
-                logger.debug({ userId: member.id, roleName: targetRoleThreshold.roleName }, 'Member already has target role.');
+        // Assign new roles
+        for (const role of qualifiedRoles) {
+            if (!member.roles.cache.has(role.roleId)) {
+                await addRoleSafe(member, role.roleId, role.roleName);
             }
         }
 
-        // Remove other threshold-based roles if no longer applicable or not the target
+        // Remove unqualified roles
         for (const role of roleThresholds) {
-            if (
-                (!targetRoleThreshold || role.roleId !== targetRoleThreshold.roleId) &&
-                member.roles.cache.has(role.roleId)
-            ) {
+            if (!qualifiedRoleIds.includes(role.roleId) && member.roles.cache.has(role.roleId)) {
                 await removeRoleSafe(member, role.roleId, role.roleName);
             }
         }
+
     } catch (err) {
-        logger.error({ userId: userPortfolio.userId, err }, 'Error processing user roles');
+        logger.error({ userId: user.discordId, err }, 'Error processing user roles');
     }
 };
 
 const roleAssignmentJob = (client) => {
     try {
-        // Run more frequently to ensure roles are up to date with cached portfolios
         cron.schedule('*/30 * * * *', async () => {
             logger.info('=== Role Assignment Job Started ===');
 
@@ -90,9 +99,7 @@ const roleAssignmentJob = (client) => {
                 }
 
                 const roleThresholds = await withRetry(() =>
-                    prisma.roleThreshold.findMany({
-                        orderBy: { threshold: 'desc' },
-                    }), 'roleAssignmentJob-fetchThresholds');
+                    prisma.roleThreshold.findMany(), 'roleAssignmentJob-fetchThresholds');
 
                 if (roleThresholds.length === 0) {
                     logger.info(
@@ -101,12 +108,12 @@ const roleAssignmentJob = (client) => {
                     return;
                 }
 
-                const portfolios = await withRetry(() => prisma.portfolio.findMany(), 'roleAssignmentJob-fetchPortfolios');
+                const users = await prisma.user.findMany();
 
-                for (const userPortfolio of portfolios) {
+                for (const user of users) {
                     await processUserRoles(
                         guild,
-                        userPortfolio,
+                        user,
                         roleThresholds
                     );
                 }

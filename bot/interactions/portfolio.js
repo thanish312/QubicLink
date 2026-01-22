@@ -1,6 +1,5 @@
 const logger = require('../../utils/logger');
 const { prisma } = require('../../services/prisma');
-const { getQubicBalance } = require('../../services/qubic.service');
 const { DISCORD_ERROR_CODES } = require('../constants');
 
 module.exports = async (interaction, commandId) => {
@@ -22,32 +21,24 @@ module.exports = async (interaction, commandId) => {
             );
         }
 
-        let totalBalance = 0n;
-        const listPromises = wallets.map(async (w, i) => {
-            try {
-                const bal = w.isVerified
-                    ? await getQubicBalance(w.address)
-                    : 0n;
-                if (w.isVerified) totalBalance += bal;
-                return `${i + 1}. ${w.address.slice(0, 8)}... ${
-                    w.isVerified
-                        ? `✅ (${bal.toString()} Q)`
-                        : '⏳ Pending verification'
-                }`;
-            } catch {
-                logger.warn(
-                    { commandId, wallet: w.address },
-                    'Failed to fetch balance for a wallet, showing 0.'
-                );
-                return `${i + 1}. ${w.address.slice(0, 8)}... ⚠️ RPC Error (showing 0 Q)`;
-            }
-        });
+        const portfolio = await prisma.portfolio.findUnique({ where: { userId: interaction.user.id } });
+        const ownedAssets = await prisma.ownedAsset.findMany({ where: { userId: interaction.user.id } });
 
-        const list = (await Promise.all(listPromises)).join('\n');
+        let totalBalance = portfolio ? portfolio.totalBalance : 0n;
+
+        const walletList = wallets.map((w, i) => {
+            return `${i + 1}. ${w.address.slice(0, 8)}... ${
+                w.isVerified
+                    ? `✅`
+                    : '⏳ Pending verification'
+            }`;
+        }).join('\n');
+
+        const assetList = ownedAssets.map(a => `**${a.assetName}:** ${BigInt(a.quantity).toLocaleString()}`).join('\n');
 
         // 3. Edit the reply with the final result.
         await interaction.editReply({
-            content: `### 💼 Your Portfolio\n\n${list}\n\n**Total Net Worth:** ${totalBalance.toString()} QUBIC`,
+            content: `### 💼 Your Portfolio\n\n**Wallets:**\n${walletList}\n\n**Qubic Balance:** ${totalBalance.toLocaleString()} QUBIC\n\n**Other Assets:**\n${assetList}`,
         });
 
         logger.info(

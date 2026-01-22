@@ -15,7 +15,7 @@
 
 ## About The Project
 
-QubicLink solves a common problem in the web3 space: how to grant Discord roles based on a user's on-chain assets without compromising security or requiring users to perform complex actions like signing messages. This project provides a robust and automated solution that links a user's Discord identity to their Qubic wallet address in a trustless manner, then assigns roles based on the total value of their Qubic portfolio.
+QubicLink is a production-grade identity bridge that securely and trustlessly links Qubic blockchain wallets to Discord accounts. This creates a verifiable on-chain identity for users in your community, enabling powerful new automation possibilities like portfolio-based role management and a lot more.
 
 ## Key Features
 

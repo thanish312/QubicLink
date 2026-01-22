@@ -91,6 +91,15 @@ export default function User() {
                     </DetailCard>
                 </Grid>
                 <Grid item xs={12}>
+                    <DetailCard title="Owned Assets">
+                        {user.ownedAssets.map((asset) => (
+                            <Box key={asset.assetName} sx={{ mb: 1 }}>
+                                <Typography>{asset.assetName}: {BigInt(asset.quantity).toLocaleString()}</Typography>
+                            </Box>
+                        ))}
+                    </DetailCard>
+                </Grid>
+                <Grid item xs={12}>
                     <DetailCard title="Challenges">
                         {user.challenges.map((challenge) => (
                             <Box key={challenge.id} sx={{ mb: 1 }}>

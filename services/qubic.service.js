@@ -127,8 +127,34 @@ async function verifyTransactionOnChain(txId, expectedSource, expectedAmount) {
     }
 }
 
+/**
+ * Fetches the owned assets for a Qubic wallet address.
+ */
+async function getOwnedAssets(address) {
+    const url = `${CONFIG.QUBIC_RPC_URL}/v1/assets/${address}/owned`;
+    try {
+        const response = await fetchWithTimeout(url);
+        if (!response.ok) {
+            logger.warn(
+                { address, status: response.status, url },
+                '[QubicService] getOwnedAssets RPC returned non-ok status'
+            );
+            return []; // Return empty array on error
+        }
+        const data = await response.json();
+        return data.ownedAssets || [];
+    } catch (error) {
+        const serviceError = new Error(
+            `[QubicService] Failed to get owned assets: ${error.message}`
+        );
+        serviceError.cause = { address, url, originalError: error };
+        throw serviceError;
+    }
+}
+
 module.exports = {
     isValidQubicAddress,
     getQubicBalance,
     verifyTransactionOnChain,
+    getOwnedAssets,
 };

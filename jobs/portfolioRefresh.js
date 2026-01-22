@@ -1,8 +1,7 @@
 const logger = require('../utils/logger');
 const cron = require('node-cron');
 const { prisma } = require('../services/prisma');
-const { getQubicBalance } = require('../services/qubic.service');
-const { processUserRoles } = require('./roleAssignmentJob');
+const { getQubicBalance, getOwnedAssets } = require('../services/qubic.service');
 const CONFIG = require('../config/config');
 const { withRetry } = require('../utils/retry');
 
@@ -20,32 +19,56 @@ const fetchWalletsGroupedByUser = async () => {
     );
 };
 
-const updateUserPortfolioAndRoles = async (
-    client,
-    guild,
+const updateUserPortfolio = async (
     userId,
     userWalletAddresses,
-    roleThresholds,
     stats
 ) => {
     try {
+        // Fetch Qubic balance
         const balancePromises = userWalletAddresses.map((addr) =>
             getQubicBalance(addr)
         );
         const balances = await Promise.all(balancePromises);
         const totalNetWorth = balances.reduce((acc, curr) => acc + curr, 0n);
 
-        const userPortfolio = await withRetry(
-            () =>
-                prisma.portfolio.upsert({
-                    where: { userId },
-                    update: { totalBalance: totalNetWorth },
-                    create: { userId, totalBalance: totalNetWorth },
-                }),
-            `updatePortfolioForUser-${userId}`
-        );
+        // Fetch and process owned assets
+        const ownedAssetsPromises = userWalletAddresses.map((addr) => getOwnedAssets(addr));
+        const allOwnedAssets = (await Promise.all(ownedAssetsPromises)).flat();
 
-        await processUserRoles(guild, userPortfolio, roleThresholds);
+        const assetMap = new Map();
+        for (const asset of allOwnedAssets) {
+            const assetName = asset.data.issuedAsset.name;
+            const quantity = BigInt(asset.data.numberOfUnits);
+
+            if (assetMap.has(assetName)) {
+                assetMap.set(assetName, assetMap.get(assetName) + quantity);
+            } else {
+                assetMap.set(assetName, quantity);
+            }
+        }
+
+        // Update database in a transaction
+        await prisma.$transaction(async (tx) => {
+            // Update portfolio with Qubic balance
+            await tx.portfolio.upsert({
+                where: { userId },
+                update: { totalBalance: totalNetWorth },
+                create: { userId, totalBalance: totalNetWorth },
+            });
+
+            // Clear old assets and add new ones
+            await tx.ownedAsset.deleteMany({ where: { userId } });
+            if (assetMap.size > 0) {
+                await tx.ownedAsset.createMany({
+                    data: Array.from(assetMap.entries()).map(([assetName, quantity]) => ({
+                        userId,
+                        assetName,
+                        quantity: quantity.toString(),
+                    })),
+                });
+            }
+        });
 
         stats.processed++;
     } catch (err) {
@@ -66,7 +89,7 @@ const updateUserPortfolioAndRoles = async (
     }
 };
 
-const runPortfolioRefresh = async (client) => {
+const runPortfolioRefresh = async () => {
     if (isCooldown) {
         logger.warn(
             'RPC circuit breaker is active. Skipping portfolio refresh.'
@@ -78,28 +101,6 @@ const runPortfolioRefresh = async (client) => {
     const startTime = Date.now();
 
     try {
-        const guild = await client.guilds
-            .fetch(CONFIG.GUILD_ID)
-            .catch(() => null);
-        if (!guild) {
-            logger.error('Guild not found, aborting refresh.');
-            return;
-        }
-
-        const roleThresholds = await withRetry(
-            () =>
-                prisma.roleThreshold.findMany({
-                    orderBy: { threshold: 'desc' },
-                }),
-            'fetchRoleThresholds'
-        );
-
-        if (roleThresholds.length === 0) {
-            logger.warn(
-                'No role thresholds configured in DB. Skipping dynamic role assignment in portfolio refresh.'
-            );
-        }
-
         const wallets = await fetchWalletsGroupedByUser();
         const userMap = new Map();
         wallets.forEach((w) => {
@@ -108,8 +109,8 @@ const runPortfolioRefresh = async (client) => {
         });
         const userIds = Array.from(userMap.keys());
         logger.info(
-            { userCount: userIds.length, walletCount: userMap.size },
-            'Processing user portfolios and roles'
+            { userCount: userIds.length, walletCount: wallets.length },
+            'Processing user portfolios'
         );
 
         const stats = {
@@ -131,12 +132,9 @@ const runPortfolioRefresh = async (client) => {
             await Promise.all(
                 batchUserIds.map(async (userId) => {
                     const userWalletAddresses = userMap.get(userId);
-                    await updateUserPortfolioAndRoles(
-                        client,
-                        guild,
+                    await updateUserPortfolio(
                         userId,
                         userWalletAddresses,
-                        roleThresholds,
                         stats
                     );
                 })
